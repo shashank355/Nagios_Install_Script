@@ -10,7 +10,7 @@ htpasswd -b /usr/local/nagios/etc/htpasswd.users nagiosadmin newpassword
 # Dependencies
 
 ```
-sudo dnf install epel-release 
+sudo yum install epel-release 
 ```
 # Supported OS 
 
