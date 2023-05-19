@@ -4,6 +4,11 @@
 ```
 htpasswd -b /usr/local/nagios/etc/htpasswd.users nagiosadmin newpassword
 ```
+```
+username : nagiosadmin 
+password : newpassword 
+```
+
 # Dependencies
 
 ```
