@@ -1,70 +1,81 @@
 #!/bin/bash
-#Install required packages
 
-yum -y install httpd php gcc glibc glibc-common gd gd-devel make net-snmp unzip
-Create Nagios user and group
+if [ ! -d "nagios" ]; then
+  mkdir nagios
+fi
 
-useradd nagios
-groupadd nagcmd
+cd nagios
+
+if ! command -v wget &> /dev/null; then
+  dnf -y install wget
+fi
+
+if [ ! -f nagios-4.4.6.tar.gz ]; then 
+  wget http://prdownloads.sourceforge.net/sourceforge/nagios/nagios-4.4.6.tar.gz
+fi
+
+if [ ! -f nagios-plugins-2.3.3.tar.gz ]; then 
+  wget http://nagios-plugins.org/download/nagios-plugins-2.3.3.tar.gz
+fi 
+
+/usr/bin/id nagios 
+
+if [ $? -ne 0 ]; then
+  useradd nagios
+fi
+
+/usr/bin/getent group nagcmd
+
+if [ $? -ne 0 ]; then
+  groupadd nagcmd
+fi
+
 usermod -a -G nagcmd nagios
-usermod -a -G nagcmd apache
-# Download Nagios and Nagios plugins source code
+usermod -a -G nagios,nagcmd apache
 
-cd /tmp
-wget -O nagios.tar.gz https://github.com/NagiosEnterprises/nagioscore/archive/nagios-4.4.6.tar.gz
-wget -O nagios-plugins.tar.gz https://github.com/nagios-plugins/nagios-plugins/archive/release-2.3.3.tar.gz
-#Extract Nagios and Nagios plugins source code
+dnf install -y httpd php gcc glibc glibc-common gd gd-devel make net-snmp unzip 
 
-tar xzf nagios.tar.gz
-tar xzf nagios-plugins.tar.gz
-#Compile and install Nagios
+tar xvfz nagios-4.4.6.tar.gz
+tar xvfz nagios-plugins-2.3.3.tar.gz
 
-cd nagioscore-nagios-4.4.6/
+cd nagios-4.4.6
+
 ./configure --with-command-group=nagcmd
+
 make all
+
 make install
+
 make install-init
+
 make install-config
+
 make install-commandmode
+
 make install-webconf
 
-# Compile and install Nagios plugins
+cp -R contrib/eventhandlers/ /usr/local/nagios/libexec/
 
-cd ../nagios-plugins-release-2.3.3/
-./tools/setup
+chown -R nagios:nagios /usr/local/nagios/libexec/eventhandlers
+
+/usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+
+systemctl start nagios
+systemctl start httpd
+
+htpasswd -bc /usr/local/nagios/etc/htpasswd.users nagiosadmin newpassword
+
+cd ../nagios-plugins-2.3.3
+
 ./configure --with-nagios-user=nagios --with-nagios-group=nagios
+
 make
-make install
-#Create Nagios admin user and generate password
 
-htpasswd -bc /usr/local/nagios/etc/htpasswd.users nagiosadmin adminpassword
-#Create Nagios service file
+make install 
 
-cat > /etc/systemd/system/nagios.service <<EOF
-[Unit]
-Description=Nagios
-After=httpd.service
+systemctl enable nagios
+systemctl enable httpd
 
-[Service]
-ExecStart=/usr/local/nagios/bin/nagios /usr/local/nagios/etc/nagios.cfg
-ExecReload=/usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg && systemctl reload httpd.service
-User=nagios
-Group=nagios
-
-[Install]
-WantedBy=multi-user.target
-EOF
-#Reload systemd daemon and start Nagios service
-
-systemctl daemon-reload
-systemctl enable nagios.service
-systemctl start nagios.service
-#Enable and start Apache service
-
-systemctl enable httpd.service
-systemctl start httpd.service
-
-echo "Installation completed successfully."
-echo "Nagios admin username: nagiosadmin"
-echo "Nagios admin password: adminpassword"
+systemctl restart nagios
+systemctl restart httpd
 
